@@ -1,0 +1,2036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verdant Glass — Interactive Terrarium Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        :root {
+            --bg-cream: #F6F4EE;
+            --bg-night: #131B1E;
+            --botanical-green: #2B4C3F;
+            --sage-accent: #749582;
+            --terracotta: #C86D51;
+            --warm-border: #E4DFD3;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-cream);
+            color: #25332D;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .font-serif-title {
+            font-family: 'Fraunces', serif;
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.03);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(43, 76, 63, 0.25);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(43, 76, 63, 0.45);
+        }
+
+        /* Animations */
+        @keyframes floatFirefly {
+            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+            50% { transform: translate(12px, -18px) scale(1.3); opacity: 0.95; }
+        }
+        @keyframes mistFall {
+            0% { transform: translateY(-20px); opacity: 0; }
+            30% { opacity: 0.7; }
+            100% { transform: translateY(380px); opacity: 0; }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 4px #fde047); }
+            50% { opacity: 1; filter: drop-shadow(0 0 10px #facc15); }
+        }
+
+        .firefly-particle {
+            animation: floatFirefly 4s ease-in-out infinite;
+        }
+        .mist-particle {
+            animation: mistFall 1.8s linear infinite;
+        }
+        .fairy-glow {
+            animation: pulseGlow 2.4s ease-in-out infinite;
+        }
+
+        /* Interactive SVG Item Hover & Selection */
+        .terrarium-item {
+            cursor: grab;
+            transition: filter 0.15s ease;
+        }
+        .terrarium-item:active {
+            cursor: grabbing;
+        }
+        .terrarium-item:hover {
+            filter: drop-shadow(0 2px 6px rgba(43, 76, 63, 0.25));
+        }
+        .terrarium-item.selected {
+            filter: drop-shadow(0 0 4px rgba(200, 109, 81, 0.85));
+        }
+
+        /* Night mode transitions */
+        .studio-canvas-bg {
+            transition: background 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .day-gradient {
+            background: radial-gradient(circle at 50% 35%, #FFFFFF 0%, #EFECE4 65%, #E3DDD1 100%);
+        }
+        .night-gradient {
+            background: radial-gradient(circle at 50% 35%, #233338 0%, #141E22 70%, #0C1316 100%);
+        }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 4px;
+            background: #DDD7C9;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #2B4C3F;
+            margin-top: -5px;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none">
+
+    <!-- Top Navigation Bar -->
+    <header class="h-14 px-4 lg:px-6 bg-[#FBF9F5] border-b border-[#E4DFD3] flex items-center justify-between shrink-0 z-30 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-[#2B4C3F] flex items-center justify-center text-[#F6F4EE] shadow-inner">
+                <i class="ph-fill ph-plant text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-serif-title font-semibold text-lg lg:text-xl tracking-tight text-[#1E352C] leading-none">Verdant Glass</h1>
+                <p class="text-[11px] text-[#6E7E75] hidden sm:block">Botanical Terrarium Workshop</p>
+            </div>
+        </div>
+
+        <!-- Center Quick Presets & Audio -->
+        <div class="flex items-center gap-2">
+            <div class="relative">
+                <select id="presetSelect" onchange="loadPreset(this.value)" class="appearance-none bg-[#EFECE4] hover:bg-[#E5E0D5] text-[#2B4C3F] text-xs font-semibold py-2 pl-3 pr-8 rounded-xl border border-[#D8D1C2] cursor-pointer focus:outline-none transition">
+                    <option value="" disabled selected>✨ Load Preset Scene...</option>
+                    <option value="forest">🌿 Enchanted Moss Forest</option>
+                    <option value="desert">🌵 Golden Desert Oasis</option>
+                    <option value="crystal">🔮 Mystic Quartz Sanctuary</option>
+                    <option value="empty">🫙 Empty Vessel (Reset)</option>
+                </select>
+                <i class="ph-bold ph-caret-down absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#2B4C3F] pointer-events-none"></i>
+            </div>
+
+            <button onclick="waterTerrarium()" class="flex items-center gap-1.5 bg-[#E3F0EC] hover:bg-[#CFE6DF] text-[#235342] text-xs font-semibold px-3 py-2 rounded-xl border border-[#B5D9CE] transition active:scale-95" title="Mist & Water Terrarium">
+                <i class="ph-fill ph-drop text-sm text-[#3B82F6]"></i>
+                <span class="hidden md:inline">Mist Plants</span>
+            </button>
+
+            <button id="soundToggleBtn" onclick="toggleSound()" class="w-8 h-8 rounded-xl bg-[#EFECE4] hover:bg-[#E5E0D5] text-[#2B4C3F] flex items-center justify-center border border-[#D8D1C2] transition" title="Toggle Tactile Sound Effects">
+                <i id="soundIcon" class="ph-fill ph-speaker-high text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Right Export Actions -->
+        <div class="flex items-center gap-2">
+            <button onclick="saveToLocal()" class="flex items-center gap-1.5 bg-[#EFECE4] hover:bg-[#E5E0D5] text-[#2B4C3F] text-xs font-semibold px-3 py-2 rounded-xl border border-[#D8D1C2] transition active:scale-95" title="Save to Browser">
+                <i class="ph-bold ph-floppy-disk text-sm"></i>
+                <span class="hidden sm:inline">Save</span>
+            </button>
+            <button onclick="exportSnapshot()" class="flex items-center gap-1.5 bg-[#2B4C3F] hover:bg-[#1F382E] text-white text-xs font-semibold px-3.5 py-2 rounded-xl shadow-sm transition active:scale-95">
+                <i class="ph-bold ph-camera text-sm"></i>
+                <span>Snapshot</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Studio Layout -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+
+        <!-- Left Sidebar: Catalog & Customization Tabs -->
+        <aside class="w-full lg:w-80 xl:w-96 bg-[#FBF9F5] border-t lg:border-t-0 lg:border-r border-[#E4DFD3] flex flex-col order-2 lg:order-1 h-[42vh] lg:h-full shrink-0 z-20 shadow-lg lg:shadow-none">
+            
+            <!-- Category Navigation Tabs -->
+            <div class="grid grid-cols-5 gap-1 p-2 bg-[#F2EFE8] border-b border-[#E4DFD3] shrink-0">
+                <button onclick="switchTab('vessels')" id="tab-vessels" class="tab-btn flex flex-col items-center py-2 px-1 rounded-lg text-[11px] font-semibold transition bg-[#2B4C3F] text-white">
+                    <i class="ph-fill ph-jar text-base mb-0.5"></i>
+                    <span>Vessel</span>
+                </button>
+                <button onclick="switchTab('substrates')" id="tab-substrates" class="tab-btn flex flex-col items-center py-2 px-1 rounded-lg text-[11px] font-semibold text-[#52635A] hover:bg-[#E6E1D6] transition">
+                    <i class="ph-fill ph-rows text-base mb-0.5"></i>
+                    <span>Layers</span>
+                </button>
+                <button onclick="switchTab('plants')" id="tab-plants" class="tab-btn flex flex-col items-center py-2 px-1 rounded-lg text-[11px] font-semibold text-[#52635A] hover:bg-[#E6E1D6] transition">
+                    <i class="ph-fill ph-leaf text-base mb-0.5"></i>
+                    <span>Plants</span>
+                </button>
+                <button onclick="switchTab('hardscape')" id="tab-hardscape" class="tab-btn flex flex-col items-center py-2 px-1 rounded-lg text-[11px] font-semibold text-[#52635A] hover:bg-[#E6E1D6] transition">
+                    <i class="ph-fill ph-mountains text-base mb-0.5"></i>
+                    <span>Stones</span>
+                </button>
+                <button onclick="switchTab('decor')" id="tab-decor" class="tab-btn flex flex-col items-center py-2 px-1 rounded-lg text-[11px] font-semibold text-[#52635A] hover:bg-[#E6E1D6] transition">
+                    <i class="ph-fill ph-sparkle text-base mb-0.5"></i>
+                    <span>Decor</span>
+                </button>
+            </div>
+
+            <!-- Tab Content Area -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+
+                <!-- 1. VESSELS PANEL -->
+                <div id="panel-vessels" class="tab-panel space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="font-serif-title font-semibold text-base text-[#1E352C]">Glass Container</h2>
+                            <p class="text-xs text-[#6E7E75]">Choose a shape & stopper style</p>
+                        </div>
+                        <label class="flex items-center gap-2 text-xs font-medium text-[#2B4C3F] cursor-pointer bg-[#EFECE4] px-2.5 py-1.5 rounded-lg border border-[#D8D1C2]">
+                            <input type="checkbox" id="corkToggle" checked onchange="toggleCork(this.checked)" class="accent-[#2B4C3F] rounded">
+                            <span>Cork Lid</span>
+                        </label>
+                    </div>
+                    <div id="vesselGrid" class="grid grid-cols-2 gap-2.5">
+                        <!-- Dynamically populated vessel cards -->
+                    </div>
+                </div>
+
+                <!-- 2. SUBSTRATES PANEL -->
+                <div id="panel-substrates" class="tab-panel hidden space-y-4">
+                    <div>
+                        <h2 class="font-serif-title font-semibold text-base text-[#1E352C]">Substrate Base Layers</h2>
+                        <p class="text-xs text-[#6E7E75]">Add & adjust thickness from bottom to top</p>
+                    </div>
+
+                    <!-- Quick Add Layer Buttons -->
+                    <div class="flex flex-wrap gap-1.5" id="substrateAddButtons">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <!-- Active Layers Stack -->
+                    <div id="substrateStackList" class="space-y-2.5 pt-1">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- 3. PLANTS PANEL -->
+                <div id="panel-plants" class="tab-panel hidden space-y-3">
+                    <div>
+                        <h2 class="font-serif-title font-semibold text-base text-[#1E352C]">Botanical Specimens</h2>
+                        <p class="text-xs text-[#6E7E75]">Click or drag into your terrarium</p>
+                    </div>
+                    <div id="plantsGrid" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2.5">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- 4. HARDSCAPE PANEL -->
+                <div id="panel-hardscape" class="tab-panel hidden space-y-3">
+                    <div>
+                        <h2 class="font-serif-title font-semibold text-base text-[#1E352C]">Stones, Wood & Crystals</h2>
+                        <p class="text-xs text-[#6E7E75]">Build natural structure and elevation</p>
+                    </div>
+                    <div id="hardscapeGrid" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2.5">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- 5. MINIATURE DECOR PANEL -->
+                <div id="panel-decor" class="tab-panel hidden space-y-3">
+                    <div>
+                        <h2 class="font-serif-title font-semibold text-base text-[#1E352C]">Woodland Miniatures & Critters</h2>
+                        <p class="text-xs text-[#6E7E75]">Add whimsical life and glowing accents</p>
+                    </div>
+                    <div id="decorGrid" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2.5">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- Center Interactive Canvas Area -->
+        <main id="canvasContainer" class="flex-1 relative flex items-center justify-center overflow-hidden order-1 lg:order-2 studio-canvas-bg day-gradient"
+              ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+
+            <!-- Top Floating Ambiance Controls Pill -->
+            <div class="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none z-20">
+                <!-- Ecosystem Health Badge -->
+                <div class="pointer-events-auto flex items-center gap-2.5 bg-white/85 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-sm border border-[#E4DFD3]">
+                    <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" id="ecoIndicator"></div>
+                    <div class="text-xs">
+                        <span class="font-semibold text-[#1E352C]" id="ecoTitle">Balanced Microclimate</span>
+                        <span class="text-[#6E7E75] hidden sm:inline" id="ecoSubtitle"> • Drainage & Flora Ready</span>
+                    </div>
+                </div>
+
+                <!-- Ambiance Toggles -->
+                <div class="pointer-events-auto flex items-center gap-1.5 bg-white/85 backdrop-blur-md p-1.5 rounded-2xl shadow-sm border border-[#E4DFD3]">
+                    <button onclick="toggleEnv('night')" id="btn-night" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[#52635A] hover:bg-[#EFECE4] transition" title="Toggle Day / Night Lighting">
+                        <i class="ph-fill ph-moon text-sm"></i>
+                        <span class="hidden md:inline">Night</span>
+                    </button>
+                    <button onclick="toggleEnv('fireflies')" id="btn-fireflies" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[#52635A] hover:bg-[#EFECE4] transition" title="Toggle Fireflies & Spores">
+                        <i class="ph-fill ph-sparkle text-sm"></i>
+                        <span class="hidden md:inline">Fireflies</span>
+                    </button>
+                    <button onclick="toggleEnv('mist')" id="btn-mist" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[#52635A] hover:bg-[#EFECE4] transition" title="Toggle Continuous Mist">
+                        <i class="ph-fill ph-cloud-rain text-sm"></i>
+                        <span class="hidden md:inline">Mist</span>
+                    </button>
+                    <button onclick="toggleEnv('reflection')" id="btn-reflection" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-[#2B4C3F] text-white transition" title="Toggle Glass Glare Reflection">
+                        <i class="ph-fill ph-sun-horizon text-sm"></i>
+                        <span class="hidden md:inline">Glass Glare</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main Interactive Terrarium SVG Stage -->
+            <div class="w-full h-full flex items-center justify-center p-2 sm:p-6">
+                <svg id="terrariumSvg" viewBox="0 0 600 660" class="w-full h-full max-w-[560px] max-h-[82vh] drop-shadow-xl select-none touch-none" xmlns="http://www.w3.org/2000/svg">
+                    <defs id="svgDefs">
+                        <!-- Dynamic ClipPath for active vessel -->
+                        <clipPath id="vesselClip">
+                            <path id="vesselClipPath" d="" />
+                        </clipPath>
+
+                        <!-- Gradients & Filters -->
+                        <linearGradient id="glassTintDay" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+                            <stop offset="45%" stop-color="#e2f2ea" stop-opacity="0.06"/>
+                            <stop offset="100%" stop-color="#99c2b0" stop-opacity="0.18"/>
+                        </linearGradient>
+
+                        <linearGradient id="glassTintNight" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.15"/>
+                            <stop offset="50%" stop-color="#1e293b" stop-opacity="0.25"/>
+                            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.18"/>
+                        </linearGradient>
+
+                        <linearGradient id="corkGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#B08257"/>
+                            <stop offset="50%" stop-color="#C99E72"/>
+                            <stop offset="100%" stop-color="#966B43"/>
+                        </linearGradient>
+
+                        <radialGradient id="tableShadowGrad" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#15221B" stop-opacity="0.32"/>
+                            <stop offset="65%" stop-color="#15221B" stop-opacity="0.12"/>
+                            <stop offset="100%" stop-color="#15221B" stop-opacity="0"/>
+                        </radialGradient>
+
+                        <radialGradient id="fireflyGlow" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#FEF08A" stop-opacity="1"/>
+                            <stop offset="45%" stop-color="#FACC15" stop-opacity="0.6"/>
+                            <stop offset="100%" stop-color="#EAB308" stop-opacity="0"/>
+                        </radialGradient>
+
+                        <!-- Wooden Base Stand Gradient -->
+                        <linearGradient id="woodStandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#5C3D28"/>
+                            <stop offset="35%" stop-color="#7C553A"/>
+                            <stop offset="70%" stop-color="#6B4730"/>
+                            <stop offset="100%" stop-color="#4A301F"/>
+                        </linearGradient>
+                    </defs>
+
+                    <!-- Background Soft Shadow & Wooden Pedestal -->
+                    <g id="pedestalLayer">
+                        <ellipse cx="300" cy="605" rx="195" ry="24" fill="url(#tableShadowGrad)" />
+                        <path id="woodStandPath" d="M 155 580 L 445 580 L 435 602 C 435 606 165 606 165 602 Z" fill="url(#woodStandGrad)" />
+                        <ellipse id="woodStandTop" cx="300" cy="580" rx="145" ry="8" fill="#8C6246" stroke="#5C3D28" stroke-width="1.5"/>
+                    </g>
+
+                    <!-- Back Glass Wall -->
+                    <path id="vesselBackGlass" d="" fill="url(#glassTintDay)" stroke="#A7C4B8" stroke-width="2" stroke-opacity="0.5" />
+
+                    <!-- Clipped Interior: Substrates, Items, & Weather -->
+                    <g clip-path="url(#vesselClip)">
+                        <!-- Back Items Layer (Background Plants/Hardscape) -->
+                        <g id="itemsLayerContainer"></g>
+
+                        <!-- Substrate Stack Layer (Rendered with natural wave surface) -->
+                        <g id="substrateLayerGroup"></g>
+
+                        <!-- Foreground Soil Overlapping Lip (gives 3D depth to planted roots) -->
+                        <g id="soilRimOverlay" pointer-events="none"></g>
+
+                        <!-- Environmental Mist & Fireflies Layer -->
+                        <g id="weatherEffectsLayer" pointer-events="none"></g>
+
+                        <!-- Night Ambient Overlay inside Jar -->
+                        <rect id="nightInteriorOverlay" x="0" y="0" width="600" height="660" fill="#0B192C" fill-opacity="0" pointer-events="none" style="transition: fill-opacity 0.6s ease;" />
+                    </g>
+
+                    <!-- Cork Lid / Stopper -->
+                    <g id="corkLayer"></g>
+
+                    <!-- Front Glass Rim, Geometric Frames & Specular Highlights -->
+                    <g id="vesselFrontGlass" pointer-events="none">
+                        <path id="vesselFrameOverlay" d="" fill="none" />
+                        <path id="vesselOutline" d="" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-opacity="0.7" />
+                        <path id="vesselOuterBorder" d="" fill="none" stroke="#7A9A8B" stroke-width="2" stroke-opacity="0.65" />
+                        <g id="glassReflectionGroup">
+                            <path id="vesselHighlightLeft" d="" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-opacity="0.45" />
+                            <path id="vesselHighlightRight" d="" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-opacity="0.28" />
+                        </g>
+                    </g>
+
+                    <!-- Selection Highlight Box (Unclipped for visibility) -->
+                    <g id="selectionBoxLayer" pointer-events="none"></g>
+                </svg>
+            </div>
+
+            <!-- Floating Selected Item Inspector Bar -->
+            <div id="itemInspector" class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#FBF9F5]/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-xl border border-[#D8D1C2] flex items-center gap-3 z-30 transition-all">
+                <div class="pr-2 border-r border-[#E4DFD3]">
+                    <span id="selectedItemLabel" class="text-xs font-bold text-[#1E352C] block">Boston Fern</span>
+                    <span class="text-[10px] text-[#6E7E75]">Drag to move</span>
+                </div>
+
+                <!-- Scale Slider -->
+                <div class="flex items-center gap-1.5">
+                    <i class="ph-bold ph-magnifying-glass-minus text-xs text-[#6E7E75]"></i>
+                    <input type="range" id="itemScaleSlider" min="0.4" max="2.2" step="0.05" value="1" oninput="updateSelectedTransform('scale', this.value)" class="w-20">
+                    <i class="ph-bold ph-magnifying-glass-plus text-xs text-[#6E7E75]"></i>
+                </div>
+
+                <!-- Rotate Slider -->
+                <div class="flex items-center gap-1.5 pl-2 border-l border-[#E4DFD3]">
+                    <i class="ph-bold ph-arrow-counter-clockwise text-xs text-[#6E7E75]"></i>
+                    <input type="range" id="itemRotateSlider" min="-90" max="90" step="2" value="0" oninput="updateSelectedTransform('rotation', this.value)" class="w-20">
+                </div>
+
+                <!-- Action Buttons: Flip, Layer Up/Down, Duplicate, Delete -->
+                <div class="flex items-center gap-1 pl-2 border-l border-[#E4DFD3]">
+                    <button onclick="flipSelectedItem()" class="p-1.5 rounded-lg hover:bg-[#EFECE4] text-[#2B4C3F] transition" title="Flip Horizontal">
+                        <i class="ph-bold ph-arrows-left-right text-sm"></i>
+                    </button>
+                    <button onclick="moveSelectedLayer(1)" class="p-1.5 rounded-lg hover:bg-[#EFECE4] text-[#2B4C3F] transition" title="Bring Forward">
+                        <i class="ph-bold ph-arrow-up text-sm"></i>
+                    </button>
+                    <button onclick="moveSelectedLayer(-1)" class="p-1.5 rounded-lg hover:bg-[#EFECE4] text-[#2B4C3F] transition" title="Send Backward">
+                        <i class="ph-bold ph-arrow-down text-sm"></i>
+                    </button>
+                    <button onclick="duplicateSelectedItem()" class="p-1.5 rounded-lg hover:bg-[#EFECE4] text-[#2B4C3F] transition" title="Duplicate Item">
+                        <i class="ph-bold ph-copy text-sm"></i>
+                    </button>
+                    <button onclick="deleteSelectedItem()" class="p-1.5 rounded-lg hover:bg-red-100 text-red-600 transition" title="Remove Item (Del)">
+                        <i class="ph-bold ph-trash text-sm"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Toast Notification Pill -->
+            <div id="toastMessage" class="pointer-events-none opacity-0 transition-opacity duration-300 absolute top-16 left-1/2 -translate-x-1/2 bg-[#1E352C] text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 z-40">
+                <i class="ph-fill ph-check-circle text-emerald-400 text-sm"></i>
+                <span id="toastText">Terrarium saved!</span>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        /********************************************************************
+         * 1. SOUND SYNTHESIS ENGINE (Tone.js Subtle Botanical Audio)
+         ********************************************************************/
+        let soundEnabled = true;
+        let audioInitialized = false;
+        let pluckSynth, noiseSynth, chimeSynth;
+
+        async function initAudio() {
+            if (audioInitialized) return;
+            try {
+                await Tone.start();
+                pluckSynth = new Tone.PluckSynth({
+                    attackNoise: 1,
+                    dampening: 4200,
+                    resonance: 0.85
+                }).toDestination();
+                pluckSynth.volume.value = -12;
+
+                chimeSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.4 }
+                }).toDestination();
+                chimeSynth.volume.value = -16;
+
+                noiseSynth = new Tone.NoiseSynth({
+                    noise: { type: 'pink' },
+                    envelope: { attack: 0.05, decay: 0.35, sustain: 0, release: 0.2 }
+                }).toDestination();
+                noiseSynth.volume.value = -22;
+
+                audioInitialized = true;
+            } catch (e) {
+                console.warn("Audio init skipped:", e);
+            }
+        }
+
+        function playSfx(type) {
+            if (!soundEnabled) return;
+            initAudio().then(() => {
+                if (!audioInitialized) return;
+                const now = Tone.now();
+                if (type === 'place') {
+                    chimeSynth.triggerAttackRelease(["E5", "G5"], "16n", now);
+                } else if (type === 'pop') {
+                    pluckSynth.triggerAttack("C5", now);
+                } else if (type === 'mist') {
+                    noiseSynth.triggerAttackRelease("4n", now);
+                } else if (type === 'delete') {
+                    chimeSynth.triggerAttackRelease(["A3"], "16n", now);
+                } else if (type === 'layer') {
+                    pluckSynth.triggerAttack("G3", now);
+                }
+            });
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            icon.className = soundEnabled ? 'ph-fill ph-speaker-high text-sm' : 'ph-fill ph-speaker-slash text-sm text-gray-400';
+            showToast(soundEnabled ? "Sound effects enabled" : "Sound effects muted");
+        }
+
+        /********************************************************************
+         * 2. VESSEL DEFINITIONS (6 Iconic Glass Containers)
+         ********************************************************************/
+        const VESSELS = {
+            globe: {
+                id: 'globe',
+                name: 'Classic Fishbowl Globe',
+                desc: 'Wide spherical glass bowl',
+                bottomY: 580,
+                topY: 135,
+                pedestalRx: 135,
+                path: 'M 205 135 L 395 135 C 495 215 510 475 385 580 L 215 580 C 90 475 105 215 205 135 Z',
+                cork: 'M 212 115 L 388 115 L 380 146 L 220 146 Z',
+                highlightL: 'M 185 180 C 125 270 130 435 205 535',
+                highlightR: 'M 425 210 C 465 305 460 440 400 525',
+                frame: ''
+            },
+            wardian: {
+                id: 'wardian',
+                name: 'Victorian Wardian Case',
+                desc: 'Faceted geometric brass greenhouse',
+                bottomY: 580,
+                topY: 95,
+                pedestalRx: 155,
+                path: 'M 300 95 L 445 205 L 470 435 L 405 580 L 195 580 L 130 435 L 155 205 Z',
+                cork: '',
+                highlightL: 'M 175 215 L 152 425',
+                highlightR: 'M 425 215 L 448 425',
+                frame: 'M 300 95 L 300 205 M 155 205 L 445 205 M 130 435 L 470 435 M 300 205 L 220 435 L 245 580 M 300 205 L 380 435 L 355 580',
+                frameColor: '#4A3B2C'
+            },
+            apothecary: {
+                id: 'apothecary',
+                name: 'Apothecary Cloche Jar',
+                desc: 'Tall vintage pharmacy bottle',
+                bottomY: 580,
+                topY: 105,
+                pedestalRx: 145,
+                path: 'M 245 105 L 355 105 L 355 155 C 435 175 450 235 450 325 L 450 535 C 450 565 425 580 390 580 L 210 580 C 175 580 150 565 150 535 L 150 325 C 150 235 165 175 245 155 Z',
+                cork: 'M 252 78 L 348 78 L 342 122 L 258 122 Z',
+                highlightL: 'M 175 235 L 175 525',
+                highlightR: 'M 425 250 L 425 515',
+                frame: ''
+            },
+            teardrop: {
+                id: 'teardrop',
+                name: 'Hanging Teardrop',
+                desc: 'Modern suspended botanical vessel',
+                bottomY: 580,
+                topY: 95,
+                pedestalRx: 120,
+                path: 'M 260 95 L 340 95 C 395 215 485 335 465 455 C 450 540 385 580 300 580 C 215 580 150 540 135 455 C 115 335 205 215 260 95 Z',
+                cork: 'M 266 72 L 334 72 L 328 110 L 272 110 Z',
+                highlightL: 'M 240 175 C 180 295 145 390 175 495',
+                highlightR: 'M 375 225 C 430 330 445 415 415 505',
+                frame: ''
+            },
+            cylinder: {
+                id: 'cylinder',
+                name: 'Minimalist Cylinder',
+                desc: 'Sleek vertical studio column',
+                bottomY: 580,
+                topY: 115,
+                pedestalRx: 155,
+                path: 'M 165 115 L 435 115 L 435 545 C 435 568 415 580 390 580 L 210 580 C 185 580 165 568 165 545 Z',
+                cork: 'M 172 92 L 428 92 L 422 128 L 178 128 Z',
+                highlightL: 'M 190 150 L 190 535',
+                highlightR: 'M 412 165 L 412 525',
+                frame: ''
+            },
+            flask: {
+                id: 'flask',
+                name: 'Alchemist Conical Flask',
+                desc: 'Broad base tapering to narrow neck',
+                bottomY: 580,
+                topY: 100,
+                pedestalRx: 170,
+                path: 'M 255 100 L 345 100 L 345 190 L 475 510 C 488 548 465 580 420 580 L 180 580 C 135 580 112 548 125 510 L 255 190 Z',
+                cork: 'M 260 72 L 340 72 L 335 115 L 265 115 Z',
+                highlightL: 'M 248 225 L 155 515',
+                highlightR: 'M 358 240 L 445 515',
+                frame: ''
+            }
+        };
+
+        /********************************************************************
+         * 3. SUBSTRATE DEFINITIONS (Procedural Organic Textures)
+         ********************************************************************/
+        const SUBSTRATE_TYPES = {
+            pebbles: {
+                id: 'pebbles',
+                name: 'River Gravel',
+                role: 'Drainage Base',
+                color: '#9E9589',
+                topColor: '#B3AA9E',
+                grainType: 'pebbles'
+            },
+            leca: {
+                id: 'leca',
+                name: 'Clay Pebbles (LECA)',
+                role: 'Aeration & Moisture',
+                color: '#A45A3D',
+                topColor: '#B86B4B',
+                grainType: 'leca'
+            },
+            charcoal: {
+                id: 'charcoal',
+                name: 'Activated Charcoal',
+                role: 'Toxin Filtration',
+                color: '#2B2D2F',
+                topColor: '#3B3E42',
+                grainType: 'specks'
+            },
+            sphagnum: {
+                id: 'sphagnum',
+                name: 'Sphagnum Moss',
+                role: 'Nutrient Barrier',
+                color: '#6D8347',
+                topColor: '#829958',
+                grainType: 'fibers'
+            },
+            soil: {
+                id: 'soil',
+                name: 'Rich Potting Soil',
+                role: 'Root Growth Medium',
+                color: '#4E3629',
+                topColor: '#614536',
+                grainType: 'soil'
+            },
+            sand_gold: {
+                id: 'sand_gold',
+                name: 'Sahara Gold Sand',
+                role: 'Desert Aesthetic',
+                color: '#DFB97A',
+                topColor: '#E9CA93',
+                grainType: 'fine'
+            },
+            sand_rose: {
+                id: 'sand_rose',
+                name: 'Terracotta Rose Sand',
+                role: 'Decorative Strata',
+                color: '#C97B63',
+                topColor: '#D68E77',
+                grainType: 'fine'
+            },
+            sand_white: {
+                id: 'sand_white',
+                name: 'Silica Quartz Sand',
+                role: 'Bright Mineral Layer',
+                color: '#E6E4DD',
+                topColor: '#F2F0EA',
+                grainType: 'fine'
+            }
+        };
+
+        /********************************************************************
+         * 4. BOTANICAL, HARDSCAPE & DECOR SVG CATALOG (24 Custom Items)
+         ********************************************************************/
+        const CATALOG_ITEMS = [
+            // --- PLANTS ---
+            {
+                id: 'fern_boston',
+                category: 'plants',
+                name: 'Boston Sword Fern',
+                defaultScale: 1.05,
+                svg: `
+                    <g>
+                        <!-- Left Frond -->
+                        <path d="M0,0 Q-35,-45 -65,-70" fill="none" stroke="#2D5A27" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M-12,-12 C-24,-10 -28,-18 -15,-20 M-25,-28 C-40,-25 -45,-35 -28,-38 M-40,-45 C-56,-42 -58,-52 -44,-55 M-52,-58 C-66,-56 -68,-64 -55,-66" fill="#437C39" stroke="#2D5A27" stroke-width="1"/>
+                        <path d="M-10,-15 C-4,-28 -12,-32 -18,-22 M-24,-32 C-16,-45 -25,-50 -32,-40 M-38,-48 C-32,-62 -42,-65 -48,-55" fill="#529447" stroke="#2D5A27" stroke-width="1"/>
+                        <!-- Right Frond -->
+                        <path d="M0,0 Q38,-48 68,-65" fill="none" stroke="#2D5A27" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M12,-12 C24,-10 28,-18 15,-20 M26,-28 C42,-25 45,-35 28,-38 M42,-44 C58,-40 60,-50 45,-53 M55,-56 C68,-54 70,-62 58,-64" fill="#437C39" stroke="#2D5A27" stroke-width="1"/>
+                        <path d="M10,-15 C4,-28 12,-32 18,-22 M24,-32 C16,-45 25,-50 32,-40 M38,-48 C32,-62 42,-65 48,-55" fill="#529447" stroke="#2D5A27" stroke-width="1"/>
+                        <!-- Center Tall Frond -->
+                        <path d="M0,0 Q-5,-55 4,-105" fill="none" stroke="#3A6B33" stroke-width="3" stroke-linecap="round"/>
+                        <ellipse cx="-8" cy="-22" rx="9" ry="4" transform="rotate(-25 -8 -22)" fill="#529447"/>
+                        <ellipse cx="9" cy="-26" rx="9" ry="4" transform="rotate(25 9 -26)" fill="#63AB57"/>
+                        <ellipse cx="-10" cy="-42" rx="11" ry="4.5" transform="rotate(-20 -10 -42)" fill="#529447"/>
+                        <ellipse cx="10" cy="-46" rx="11" ry="4.5" transform="rotate(20 10 -46)" fill="#63AB57"/>
+                        <ellipse cx="-9" cy="-64" rx="10" ry="4" transform="rotate(-15 -9 -64)" fill="#529447"/>
+                        <ellipse cx="10" cy="-68" rx="10" ry="4" transform="rotate(15 10 -68)" fill="#63AB57"/>
+                        <ellipse cx="-6" cy="-84" rx="8" ry="3.5" transform="rotate(-10 -6 -84)" fill="#63AB57"/>
+                        <ellipse cx="8" cy="-88" rx="8" ry="3.5" transform="rotate(10 8 -88)" fill="#74BF67"/>
+                        <ellipse cx="3" cy="-103" rx="5" ry="3" fill="#74BF67"/>
+                    </g>
+                `
+            },
+            {
+                id: 'fittonia_pink',
+                category: 'plants',
+                name: 'Pink Nerve Plant',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <!-- Left Leaf -->
+                        <g transform="translate(-18, -18) rotate(-32)">
+                            <path d="M0,0 C-18,-10 -22,-38 0,-52 C22,-38 18,-10 0,0 Z" fill="#2A543B" stroke="#1B3826" stroke-width="1.5"/>
+                            <path d="M0,-2 L0,-48 M0,-14 L-10,-22 M0,-24 L-12,-34 M0,-34 L-8,-42 M0,-14 L10,-22 M0,-24 L12,-34 M0,-34 L8,-42" fill="none" stroke="#F472B6" stroke-width="1.5" stroke-linecap="round"/>
+                        </g>
+                        <!-- Right Leaf -->
+                        <g transform="translate(18, -16) rotate(34)">
+                            <path d="M0,0 C-18,-10 -22,-38 0,-52 C22,-38 18,-10 0,0 Z" fill="#2A543B" stroke="#1B3826" stroke-width="1.5"/>
+                            <path d="M0,-2 L0,-48 M0,-14 L-10,-22 M0,-24 L-12,-34 M0,-34 L-8,-42 M0,-14 L10,-22 M0,-24 L12,-34 M0,-34 L8,-42" fill="none" stroke="#F472B6" stroke-width="1.5" stroke-linecap="round"/>
+                        </g>
+                        <!-- Center Leaf -->
+                        <g transform="translate(0, -24)">
+                            <path d="M0,0 C-20,-12 -24,-45 0,-60 C24,-45 20,-12 0,0 Z" fill="#316346" stroke="#1B3826" stroke-width="1.5"/>
+                            <path d="M0,-3 L0,-54 M0,-16 L-12,-25 M0,-28 L-14,-39 M0,-40 L-9,-48 M0,-16 L12,-25 M0,-28 L14,-39 M0,-40 L9,-48" fill="none" stroke="#FB7185" stroke-width="1.8" stroke-linecap="round"/>
+                        </g>
+                        <path d="M-18,-18 L0,0 M18,-16 L0,0 M0,-24 L0,0" stroke="#234731" stroke-width="3" stroke-linecap="round"/>
+                    </g>
+                `
+            },
+            {
+                id: 'echeveria',
+                category: 'plants',
+                name: 'Blue Echeveria Rosette',
+                defaultScale: 1.0,
+                svg: `
+                    <g transform="translate(0, -16)">
+                        <!-- Outer Petals -->
+                        <path d="M0,0 C-25,-28 -45,-10 -38,8 C-28,22 -8,12 0,0 Z" fill="#689B8A" stroke="#477364" stroke-width="1.2"/>
+                        <path d="M0,0 C25,-28 45,-10 38,8 C28,22 8,12 0,0 Z" fill="#689B8A" stroke="#477364" stroke-width="1.2"/>
+                        <path d="M0,0 C-32,-5 -42,-28 -22,-38 C-5,-42 0,-18 0,0 Z" fill="#77AC9B" stroke="#477364" stroke-width="1.2"/>
+                        <path d="M0,0 C32,-5 42,-28 22,-38 C5,-42 0,-18 0,0 Z" fill="#77AC9B" stroke="#477364" stroke-width="1.2"/>
+                        <path d="M0,0 C-18,-35 -12,-50 0,-46 C12,-50 18,-35 0,0 Z" fill="#88BEAD" stroke="#477364" stroke-width="1.2"/>
+                        <!-- Inner Rosette -->
+                        <path d="M0,0 C-18,-12 -26,4 -14,14 C-4,18 6,12 0,0 Z" fill="#88BEAD" stroke="#528272" stroke-width="1"/>
+                        <path d="M0,0 C18,-12 26,4 14,14 C4,18 -6,12 0,0 Z" fill="#88BEAD" stroke="#528272" stroke-width="1"/>
+                        <path d="M0,0 C-20,-18 -14,-32 0,-28 C14,-32 20,-18 0,0 Z" fill="#9ED1C0" stroke="#528272" stroke-width="1"/>
+                        <!-- Blush Tips -->
+                        <circle cx="0" cy="-2" r="7" fill="#B5E2D3" stroke="#689B8A" stroke-width="1"/>
+                        <circle cx="0" cy="-45" r="2.5" fill="#F472B6" opacity="0.7"/>
+                        <circle cx="-36" cy="5" r="2.5" fill="#F472B6" opacity="0.7"/>
+                        <circle cx="36" cy="5" r="2.5" fill="#F472B6" opacity="0.7"/>
+                    </g>
+                `
+            },
+            {
+                id: 'moss_cushion',
+                category: 'plants',
+                name: 'Velvet Pillow Moss',
+                defaultScale: 1.15,
+                svg: `
+                    <g>
+                        <path d="M-52,2 C-56,-22 -32,-38 -8,-34 C10,-42 38,-36 48,-16 C56,-6 54,4 44,5 L-46,5 C-50,5 -52,2 -52,2 Z" fill="#4B7F32" stroke="#355E20" stroke-width="1.5"/>
+                        <path d="M-38,0 C-36,-18 -16,-28 4,-24 C18,-30 34,-20 38,-4" fill="#639E44" opacity="0.85"/>
+                        <circle cx="-22" cy="-16" r="6" fill="#77B556" opacity="0.6"/>
+                        <circle cx="12" cy="-18" r="8" fill="#77B556" opacity="0.6"/>
+                        <circle cx="-4" cy="-24" r="5" fill="#88C767" opacity="0.5"/>
+                        <!-- Spore stalks -->
+                        <path d="M-12,-28 L-14,-48 M8,-26 L12,-45" stroke="#84A93C" stroke-width="1.2"/>
+                        <ellipse cx="-14" cy="-49" rx="2" ry="3.5" fill="#C28D38"/>
+                        <ellipse cx="12" cy="-46" rx="2" ry="3.5" fill="#C28D38"/>
+                    </g>
+                `
+            },
+            {
+                id: 'cactus_bunny',
+                category: 'plants',
+                name: 'Bunny Ears Cactus',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <!-- Main Pad -->
+                        <path d="M-18,0 C-28,-25 -22,-58 0,-60 C22,-58 28,-25 18,0 Z" fill="#558B46" stroke="#38612D" stroke-width="1.8"/>
+                        <!-- Left Ear -->
+                        <path d="M-12,-50 C-32,-68 -36,-95 -18,-102 C-2,-100 0,-72 -6,-52 Z" fill="#669E56" stroke="#38612D" stroke-width="1.6"/>
+                        <!-- Right Ear -->
+                        <path d="M12,-48 C32,-65 38,-92 20,-100 C4,-98 2,-70 6,-50 Z" fill="#669E56" stroke="#38612D" stroke-width="1.6"/>
+                        <!-- Bloom on Top -->
+                        <circle cx="20" cy="-102" r="6" fill="#F43F5E"/>
+                        <circle cx="20" cy="-102" r="2.5" fill="#FDE047"/>
+                        <!-- Glochids (Dots) -->
+                        <g fill="#FEF3C7">
+                            <circle cx="-8" cy="-20" r="1.5"/><circle cx="8" cy="-24" r="1.5"/><circle cx="0" cy="-38" r="1.5"/>
+                            <circle cx="-18" cy="-75" r="1.4"/><circle cx="-12" cy="-88" r="1.4"/>
+                            <circle cx="18" cy="-72" r="1.4"/><circle cx="14" cy="-85" r="1.4"/>
+                        </g>
+                    </g>
+                `
+            },
+            {
+                id: 'pilea',
+                category: 'plants',
+                name: 'Chinese Money Plant',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <path d="M0,2 L0,-45 M0,-18 Q-22,-32 -32,-45 M0,-24 Q25,-35 34,-52 M0,-32 Q-15,-55 -20,-72 M0,-36 Q16,-58 18,-76" fill="none" stroke="#4D724D" stroke-width="2.2" stroke-linecap="round"/>
+                        <ellipse cx="-32" cy="-45" rx="14" ry="11" transform="rotate(-20 -32 -45)" fill="#5E9A57" stroke="#3B6936" stroke-width="1.5"/>
+                        <circle cx="-30" cy="-44" r="2" fill="#A3D99B"/>
+                        <ellipse cx="34" cy="-52" rx="15" ry="11" transform="rotate(22 34 -52)" fill="#5E9A57" stroke="#3B6936" stroke-width="1.5"/>
+                        <circle cx="32" cy="-51" r="2" fill="#A3D99B"/>
+                        <ellipse cx="-20" cy="-72" rx="13" ry="10" transform="rotate(-10 -20 -72)" fill="#6FB067" stroke="#3B6936" stroke-width="1.5"/>
+                        <circle cx="-19" cy="-71" r="2" fill="#B5E6AE"/>
+                        <ellipse cx="18" cy="-76" rx="14" ry="11" transform="rotate(12 18 -76)" fill="#6FB067" stroke="#3B6936" stroke-width="1.5"/>
+                        <circle cx="17" cy="-75" r="2" fill="#B5E6AE"/>
+                        <ellipse cx="0" cy="-52" rx="16" ry="13" fill="#7AC072" stroke="#3B6936" stroke-width="1.5"/>
+                        <circle cx="0" cy="-51" r="2.2" fill="#C4F0BE"/>
+                    </g>
+                `
+            },
+            {
+                id: 'tillandsia',
+                category: 'plants',
+                name: 'Blushing Air Plant',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <path d="M0,0 C-15,-12 -42,-8 -54,-24 C-35,-22 -14,-22 0,-8" fill="#7E9C88" stroke="#5C7A66" stroke-width="1"/>
+                        <path d="M0,0 C15,-12 42,-8 54,-24 C35,-22 14,-22 0,-8" fill="#7E9C88" stroke="#5C7A66" stroke-width="1"/>
+                        <path d="M0,-2 C-22,-24 -38,-45 -46,-68 C-28,-50 -12,-32 0,-12" fill="#8FAD99" stroke="#5C7A66" stroke-width="1"/>
+                        <path d="M0,-2 C22,-24 38,-45 46,-68 C28,-50 12,-32 0,-12" fill="#8FAD99" stroke="#5C7A66" stroke-width="1"/>
+                        <path d="M0,-4 C-12,-35 -18,-62 -14,-85 C-6,-62 -2,-35 2,-12" fill="#D9778B" stroke="#9F4A5C" stroke-width="1"/>
+                        <path d="M0,-4 C12,-35 18,-62 14,-85 C6,-62 2,-35 -2,-12" fill="#E08799" stroke="#9F4A5C" stroke-width="1"/>
+                        <path d="M0,-6 Q-2,-52 0,-92 Q4,-52 2,-6" fill="#F43F5E"/>
+                    </g>
+                `
+            },
+            {
+                id: 'Pitcher_plant',
+                category: 'plants',
+                name: 'Carnivorous Pitcher',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <!-- Curved Leaves -->
+                        <path d="M0,0 Q-25,-15 -40,-5" fill="none" stroke="#3F6E36" stroke-width="3" stroke-linecap="round"/>
+                        <!-- Pitcher 1 -->
+                        <path d="M-8,0 C-18,-20 -26,-55 -14,-72 C-6,-72 -4,-52 -2,-20 Z" fill="#78A842" stroke="#466920" stroke-width="1.5"/>
+                        <ellipse cx="-12" cy="-72" rx="7" ry="3.5" fill="#B93829" stroke="#7A1F14" stroke-width="1.5"/>
+                        <path d="M-18,-74 C-22,-84 -10,-88 -6,-78" fill="#9BC95B" stroke="#466920" stroke-width="1.2"/>
+                        <!-- Pitcher 2 (Taller) -->
+                        <path d="M4,0 C6,-28 22,-65 12,-88 C2,-88 0,-60 -2,0 Z" fill="#8EBF52" stroke="#466920" stroke-width="1.5"/>
+                        <path d="M6,-45 Q12,-55 10,-72" fill="none" stroke="#B93829" stroke-width="1.5" stroke-dasharray="2 3"/>
+                        <ellipse cx="9" cy="-88" rx="8" ry="4" fill="#D14332" stroke="#7A1F14" stroke-width="1.5"/>
+                        <path d="M16,-90 C22,-102 6,-106 2,-94" fill="#A8D66D" stroke="#466920" stroke-width="1.2"/>
+                    </g>
+                `
+            },
+            {
+                id: 'string_pearls',
+                category: 'plants',
+                name: 'String of Pearls Vine',
+                defaultScale: 1.05,
+                svg: `
+                    <g>
+                        <path d="M-15,-5 Q-22,25 -18,62 M0,-8 Q2,32 -2,78 M16,-4 Q24,22 20,54" fill="none" stroke="#497542" stroke-width="1.5"/>
+                        <g fill="#6EB062" stroke="#3E6B36" stroke-width="1.2">
+                            <circle cx="-12" cy="-6" r="6"/><circle cx="0" cy="-9" r="6.5"/><circle cx="12" cy="-5" r="6"/>
+                            <circle cx="-18" cy="8" r="5.5"/><circle cx="-20" cy="24" r="5.5"/><circle cx="-19" cy="40" r="5"/><circle cx="-18" cy="56" r="4.5"/>
+                            <circle cx="2" cy="6" r="6"/><circle cx="1" cy="22" r="5.5"/><circle cx="0" cy="38" r="5.5"/><circle cx="-1" cy="54" r="5"/><circle cx="-2" cy="70" r="4.5"/>
+                            <circle cx="19" cy="9" r="5.5"/><circle cx="22" cy="25" r="5"/><circle cx="21" cy="41" r="4.5"/><circle cx="20" cy="54" r="4"/>
+                        </g>
+                    </g>
+                `
+            },
+
+            // --- HARDSCAPE (Stones, Crystals, Driftwood) ---
+            {
+                id: ' stone_seiryu',
+                category: 'hardscape',
+                name: 'Seiryu Mountain Rock',
+                defaultScale: 1.1,
+                svg: `
+                    <g>
+                        <polygon points="-45,4 -32,-48 -8,-78 18,-62 42,-18 48,4" fill="#5D676E" stroke="#394045" stroke-width="2" stroke-linejoin="round"/>
+                        <polygon points="-8,-78 18,-62 6,-20 -24,4 -45,4 -32,-48" fill="#737F87"/>
+                        <polygon points="-8,-78 6,-20 -12,4 -24,4" fill="#89969E"/>
+                        <!-- White Calcite Veins -->
+                        <path d="M-28,-38 L-10,-26 L-4,-8 M14,-52 L4,-32 L22,-18" fill="none" stroke="#E2E8F0" stroke-width="2" stroke-linecap="round"/>
+                    </g>
+                `
+            },
+            {
+                id: 'driftwood_branch',
+                category: 'hardscape',
+                name: 'Spiderwood Branch',
+                defaultScale: 1.15,
+                svg: `
+                    <g>
+                        <path d="M-40,4 C-20,-15 -5,-45 25,-85 C32,-95 45,-105 55,-108 L58,-102 C42,-95 28,-80 12,-48 C28,-55 48,-52 64,-58 L66,-52 C44,-44 22,-42 4,-26 C-6,-8 -12,2 -16,4 Z" fill="#8A6240" stroke="#593D25" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M-8,-22 C-22,-42 -38,-55 -52,-72 L-46,-75 C-32,-58 -18,-46 -2,-30" fill="#9E734E" stroke="#593D25" stroke-width="1.6"/>
+                        <!-- Wood Grain Lines -->
+                        <path d="M-25,-2 Q0,-32 22,-68 M-14,-2 Q6,-25 35,-48" fill="none" stroke="#593D25" stroke-width="1.2" opacity="0.6"/>
+                    </g>
+                `
+            },
+            {
+                id: 'crystal_amethyst',
+                category: 'hardscape',
+                name: 'Amethyst Quartz Cluster',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <!-- Left Point -->
+                        <polygon points="-28,2 -38,-35 -24,-52 -12,-32 -8,2" fill="#9333EA" stroke="#581C87" stroke-width="1.5"/>
+                        <polygon points="-38,-35 -24,-52 -20,-32 -28,2" fill="#C084FC" opacity="0.7"/>
+                        <!-- Right Point -->
+                        <polygon points="8,2 14,-38 30,-48 36,-28 24,2" fill="#7E22CE" stroke="#581C87" stroke-width="1.5"/>
+                        <polygon points="14,-38 30,-48 24,-26 8,2" fill="#A855F7" opacity="0.7"/>
+                        <!-- Center Main Spire -->
+                        <polygon points="-14,4 -18,-56 0,-82 18,-56 14,4" fill="#A855F7" stroke="#581C87" stroke-width="1.6"/>
+                        <polygon points="-18,-56 0,-82 4,-52 -6,4 -14,4" fill="#D8B4FE" opacity="0.75"/>
+                        <polygon points="0,-82 18,-56 4,-52" fill="#F3E8FF" opacity="0.9"/>
+                    </g>
+                `
+            },
+            {
+                id: 'crystal_rose',
+                category: 'hardscape',
+                name: 'Rose Quartz Obelisk',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <polygon points="-24,2 -32,-28 -18,-42 -6,2" fill="#F472B6" stroke="#9D174D" stroke-width="1.4"/>
+                        <polygon points="-12,4 -16,-48 2,-74 18,-46 14,4" fill="#F9A8D4" stroke="#9D174D" stroke-width="1.5"/>
+                        <polygon points="-16,-48 2,-74 6,-44 -4,4 -12,4" fill="#FCE7F3" opacity="0.8"/>
+                        <polygon points="8,2 16,-24 28,-32 32,-14 22,2" fill="#EC4899" stroke="#9D174D" stroke-width="1.4"/>
+                    </g>
+                `
+            },
+            {
+                id: 'river_pebbles',
+                category: 'hardscape',
+                name: 'Zen River Cairn',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <ellipse cx="0" cy="-6" rx="36" ry="12" fill="#78716C" stroke="#44403C" stroke-width="1.6"/>
+                        <ellipse cx="-8" cy="-9" rx="22" ry="6" fill="#A8A29E" opacity="0.5"/>
+                        <ellipse cx="2" cy="-22" rx="26" ry="10" fill="#A8A29E" stroke="#44403C" stroke-width="1.6"/>
+                        <ellipse cx="-4" cy="-25" rx="15" ry="4.5" fill="#D6D3D1" opacity="0.6"/>
+                        <ellipse cx="-2" cy="-35" rx="16" ry="7" fill="#57534E" stroke="#292524" stroke-width="1.5"/>
+                        <ellipse cx="0" cy="-45" rx="9" ry="4.5" fill="#E7E5E4" stroke="#57534E" stroke-width="1.4"/>
+                    </g>
+                `
+            },
+            {
+                id: 'slate_arch',
+                category: 'hardscape',
+                name: 'Hollow Mossy Arch',
+                defaultScale: 1.15,
+                svg: `
+                    <g>
+                        <path d="M-48,4 L-42,-45 L-18,-68 L22,-65 L45,-38 L48,4 L24,4 L20,-32 L-14,-35 L-22,4 Z" fill="#475569" stroke="#1E293B" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M-42,-45 L-18,-68 L22,-65 L8,-48 L-24,-45 Z" fill="#64748B"/>
+                        <!-- Moss patch on arch top -->
+                        <path d="M-22,-64 C-12,-74 12,-74 24,-62 C16,-56 -14,-56 -22,-64 Z" fill="#558B2F" stroke="#33691E" stroke-width="1.2"/>
+                    </g>
+                `
+            },
+
+            // --- MINIATURE DECOR & CRITTERS ---
+            {
+                id: 'mushrooms_amanita',
+                category: 'decor',
+                name: 'Toadstool Duo',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <!-- Small Mushroom -->
+                        <path d="M-18,2 C-20,-10 -24,-18 -22,-26 L-14,-26 C-12,-18 -14,-10 -12,2 Z" fill="#F5EFE6" stroke="#A89F91" stroke-width="1.2"/>
+                        <path d="M-34,-24 C-34,-38 -6,-38 -6,-24 Z" fill="#DC2626" stroke="#7F1D1D" stroke-width="1.4"/>
+                        <circle cx="-24" cy="-30" r="2" fill="#FFFBEB"/>
+                        <circle cx="-14" cy="-28" r="2.2" fill="#FFFBEB"/>
+                        <!-- Tall Mushroom -->
+                        <path d="M4,2 C4,-16 8,-34 6,-48 L16,-48 C18,-34 14,-16 16,2 Z" fill="#F5EFE6" stroke="#A89F91" stroke-width="1.4"/>
+                        <path d="M-12,-45 C-12,-68 34,-68 34,-45 C22,-42 -2,-42 -12,-45 Z" fill="#EF4444" stroke="#7F1D1D" stroke-width="1.5"/>
+                        <circle cx="2" cy="-54" r="3" fill="#FFFBEB"/>
+                        <circle cx="14" cy="-58" r="3.5" fill="#FFFBEB"/>
+                        <circle cx="23" cy="-51" r="2.5" fill="#FFFBEB"/>
+                        <circle cx="8" cy="-48" r="2" fill="#FFFBEB"/>
+                    </g>
+                `
+            },
+            {
+                id: 'cottage_house',
+                category: 'decor',
+                name: 'Woodland Fairy Cottage',
+                defaultScale: 1.05,
+                svg: `
+                    <g>
+                        <!-- Walls -->
+                        <rect x="-24" y="-38" width="48" height="40" rx="3" fill="#E6D7C3" stroke="#785A3C" stroke-width="1.8"/>
+                        <!-- Wood beams -->
+                        <line x1="-24" y1="-20" x2="24" y2="-20" stroke="#785A3C" stroke-width="2"/>
+                        <!-- Round Door -->
+                        <path d="M-8,2 L-8,-14 C-8,-22 8,-22 8,-14 L8,2 Z" fill="#8C583A" stroke="#4A2C18" stroke-width="1.5"/>
+                        <circle cx="4" cy="-8" r="1.5" fill="#FBBF24"/>
+                        <!-- Glowing Window -->
+                        <circle cx="-12" cy="-29" r="5" fill="#FEF08A" stroke="#785A3C" stroke-width="1.5" class="fairy-glow"/>
+                        <circle cx="12" cy="-29" r="5" fill="#FEF08A" stroke="#785A3C" stroke-width="1.5" class="fairy-glow"/>
+                        <!-- Mossy Shingle Roof -->
+                        <path d="M-32,-35 L0,-68 L32,-35 C20,-32 -20,-32 -32,-35 Z" fill="#4D7C43" stroke="#284A22" stroke-width="1.8" stroke-linejoin="round"/>
+                        <!-- Chimney -->
+                        <rect x="12" y="-62" width="9" height="16" fill="#B45309" stroke="#78350F" stroke-width="1.4"/>
+                    </g>
+                `
+            },
+            {
+                id: 'lantern_post',
+                category: 'decor',
+                name: 'Glowing Spirit Lantern',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <!-- Curved Iron Post -->
+                        <path d="M-8,2 L-8,-58 C-8,-72 14,-72 14,-58 L14,-52" fill="none" stroke="#27272A" stroke-width="3" stroke-linecap="round"/>
+                        <path d="M-14,2 L-2,2" stroke="#27272A" stroke-width="4" stroke-linecap="round"/>
+                        <!-- Hanging Lantern -->
+                        <polygon points="8,-52 20,-52 24,-46 4,-46" fill="#3F3F46" stroke="#18181B" stroke-width="1.2"/>
+                        <polygon points="6,-46 22,-46 19,-30 9,-30" fill="#FEF08A" stroke="#CA8A04" stroke-width="1.4" class="fairy-glow"/>
+                        <circle cx="14" cy="-38" r="4" fill="#FFFFFF"/>
+                        <polygon points="8,-30 20,-30 14,-25" fill="#3F3F46"/>
+                    </g>
+                `
+            },
+            {
+                id: 'kodama_spirit',
+                category: 'decor',
+                name: 'Forest Spirit Figurine',
+                defaultScale: 0.95,
+                svg: `
+                    <g>
+                        <!-- Body -->
+                        <path d="M-9,2 C-12,-10 -10,-22 0,-24 C10,-22 12,-10 9,2 Z" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.5"/>
+                        <!-- Tilted Head -->
+                        <g transform="translate(2, -32) rotate(14)">
+                            <ellipse cx="0" cy="0" rx="14" ry="12" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.5"/>
+                            <circle cx="-5" cy="-2" r="2.8" fill="#1E293B"/>
+                            <circle cx="6" cy="-1" r="2.2" fill="#1E293B"/>
+                            <ellipse cx="-1" cy="5" rx="2" ry="2.8" fill="#1E293B"/>
+                        </g>
+                    </g>
+                `
+            },
+            {
+                id: 'snail_friend',
+                category: 'decor',
+                name: 'Garden Snail',
+                defaultScale: 1.0,
+                svg: `
+                    <g>
+                        <!-- Soft Body -->
+                        <path d="M-24,2 C-24,-4 -12,-5 14,-5 C22,-5 26,-12 29,-12 C32,-12 31,2 20,2 Z" fill="#D6C7B2" stroke="#8C7A64" stroke-width="1.4"/>
+                        <!-- Eye stalks -->
+                        <path d="M26,-10 L31,-20 M28,-9 L35,-16" stroke="#8C7A64" stroke-width="1.5" stroke-linecap="round"/>
+                        <circle cx="31" cy="-20" r="1.8" fill="#574938"/>
+                        <circle cx="35" cy="-16" r="1.8" fill="#574938"/>
+                        <!-- Spiral Shell -->
+                        <circle cx="-2" cy="-14" r="14" fill="#B47B44" stroke="#6E441B" stroke-width="1.6"/>
+                        <path d="M-2,-14 C2,-14 4,-10 0,-8 C-5,-6 -9,-12 -6,-18 C-2,-24 8,-22 10,-14" fill="none" stroke="#593512" stroke-width="1.8" stroke-linecap="round"/>
+                    </g>
+                `
+            },
+            {
+                id: 'ladybug',
+                category: 'decor',
+                name: 'Lucky Ladybug',
+                defaultScale: 1.0,
+                svg: `
+                    <g transform="translate(0, -6)">
+                        <!-- Legs -->
+                        <path d="M-12,-4 L-18,-8 M-14,0 L-20,0 M-12,4 L-18,8 M12,-4 L18,-8 M14,0 L20,0 M12,4 L18,8" stroke="#18181B" stroke-width="1.8" stroke-linecap="round"/>
+                        <!-- Head -->
+                        <circle cx="0" cy="-12" r="6" fill="#18181B"/>
+                        <!-- Red Shell -->
+                        <ellipse cx="0" cy="0" rx="12" ry="14" fill="#EF4444" stroke="#7F1D1D" stroke-width="1.5"/>
+                        <line x1="0" y1="-14" x2="0" y2="14" stroke="#18181B" stroke-width="1.6"/>
+                        <circle cx="-5" cy="-5" r="2.2" fill="#18181B"/>
+                        <circle cx="5" cy="-5" r="2.2" fill="#18181B"/>
+                        <circle cx="-6" cy="4" r="2.5" fill="#18181B"/>
+                        <circle cx="6" cy="4" r="2.5" fill="#18181B"/>
+                    </g>
+                `
+            },
+            {
+                id: 'fairy_lights',
+                category: 'decor',
+                name: 'Copper Fairy String Lights',
+                defaultScale: 1.15,
+                svg: `
+                    <g>
+                        <path d="M-75,-35 Q-35,5 0,-25 Q35,-55 75,-15" fill="none" stroke="#B45309" stroke-width="1.5" stroke-dasharray="3 1"/>
+                        <g class="fairy-glow">
+                            <circle cx="-65" cy="-26" r="4.5" fill="#FEF08A" stroke="#F59E0B" stroke-width="1"/>
+                            <circle cx="-38" cy="-11" r="4.5" fill="#FEF08A" stroke="#F59E0B" stroke-width="1"/>
+                            <circle cx="-10" cy="-18" r="4.5" fill="#FEF08A" stroke="#F59E0B" stroke-width="1"/>
+                            <circle cx="18" cy="-36" r="4.5" fill="#FEF08A" stroke="#F59E0B" stroke-width="1"/>
+                            <circle cx="46" cy="-32" r="4.5" fill="#FEF08A" stroke="#F59E0B" stroke-width="1"/>
+                            <circle cx="70" cy="-18" r="4.5" fill="#FEF08A" stroke="#F59E0B" stroke-width="1"/>
+                        </g>
+                    </g>
+                `
+            },
+            {
+                id: 'stepping_stones',
+                category: 'decor',
+                name: 'Garden Stepping Path',
+                defaultScale: 1.1,
+                svg: `
+                    <g>
+                        <ellipse cx="-26" cy="2" rx="14" ry="5" fill="#CBD5E1" stroke="#64748B" stroke-width="1.4"/>
+                        <ellipse cx="2" cy="-4" rx="12" ry="4.5" fill="#E2E8F0" stroke="#64748B" stroke-width="1.4"/>
+                        <ellipse cx="24" cy="-11" rx="10" ry="3.8" fill="#CBD5E1" stroke="#64748B" stroke-width="1.4"/>
+                        <ellipse cx="40" cy="-18" rx="7" ry="2.8" fill="#94A3B8" stroke="#64748B" stroke-width="1.2"/>
+                    </g>
+                `
+            },
+            {
+                id: 'frog_tiny',
+                category: 'decor',
+                name: 'Emerald Tree Frog',
+                defaultScale: 0.95,
+                svg: `
+                    <g>
+                        <ellipse cx="0" cy="-8" rx="13" ry="9" fill="#65A30D" stroke="#365314" stroke-width="1.5"/>
+                        <path d="M-10,0 C-16,-2 -16,-10 -8,-10 M10,0 C16,-2 16,-10 8,-10" fill="#4D7C0F" stroke="#365314" stroke-width="1.5"/>
+                        <circle cx="-6" cy="-16" r="4" fill="#84CC16" stroke="#365314" stroke-width="1.4"/>
+                        <circle cx="6" cy="-16" r="4" fill="#84CC16" stroke="#365314" stroke-width="1.4"/>
+                        <circle cx="-6" cy="-16" r="2" fill="#EF4444"/>
+                        <circle cx="6" cy="-16" r="2" fill="#EF4444"/>
+                        <path d="M-5,-8 Q0,-5 5,-8" fill="none" stroke="#365314" stroke-width="1.4" stroke-linecap="round"/>
+                    </g>
+                `
+            }
+        ];
+
+        /********************************************************************
+         * 5. APPLICATION STATE & PRESETS
+         ********************************************************************/
+        let state = {
+            vessel: 'globe',
+            showCork: true,
+            substrates: [
+                { uid: 's1', type: 'pebbles', thickness: 34 },
+                { uid: 's2', type: 'charcoal', thickness: 16 },
+                { uid: 's3', type: 'sphagnum', thickness: 20 },
+                { uid: 's4', type: 'soil', thickness: 56 }
+            ],
+            items: [],
+            selectedUid: null,
+            env: {
+                night: false,
+                fireflies: false,
+                mist: false,
+                reflection: true
+            }
+        };
+
+        const PRESETS = {
+            forest: {
+                vessel: 'globe',
+                showCork: true,
+                substrates: [
+                    { uid: 'p1', type: 'pebbles', thickness: 32 },
+                    { uid: 'p2', type: 'charcoal', thickness: 16 },
+                    { uid: 'p3', type: 'sphagnum', thickness: 22 },
+                    { uid: 'p4', type: 'soil', thickness: 58 }
+                ],
+                items: [
+                    { uid: 'i1', id: 'driftwood_branch', x: 315, y: 455, scale: 1.35, rotation: -8, flipX: false },
+                    { uid: 'i2', id: ' stone_seiryu', x: 220, y: 460, scale: 1.15, rotation: 0, flipX: false },
+                    { uid: 'i3', id: 'fern_boston', x: 265, y: 450, scale: 1.3, rotation: -5, flipX: false },
+                    { uid: 'i4', id: 'fittonia_pink', x: 365, y: 460, scale: 1.05, rotation: 8, flipX: false },
+                    { uid: 'i5', id: 'moss_cushion', x: 205, y: 468, scale: 1.25, rotation: 0, flipX: false },
+                    { uid: 'i6', id: 'moss_cushion', x: 325, y: 472, scale: 1.1, rotation: 0, flipX: true },
+                    { uid: 'i7', id: 'mushrooms_amanita', x: 255, y: 466, scale: 0.95, rotation: 4, flipX: false },
+                    { uid: 'i8', id: 'kodama_spirit', x: 300, y: 465, scale: 0.9, rotation: 0, flipX: false },
+                    { uid: 'i9', id: 'snail_friend', x: 185, y: 462, scale: 0.85, rotation: 0, flipX: false }
+                ]
+            },
+            desert: {
+                vessel: 'teardrop',
+                showCork: false,
+                substrates: [
+                    { uid: 'd1', type: 'pebbles', thickness: 28 },
+                    { uid: 'd2', type: 'sand_rose', thickness: 30 },
+                    { uid: 'd3', type: 'sand_gold', thickness: 48 },
+                    { uid: 'd4', type: 'sand_white', thickness: 22 }
+                ],
+                items: [
+                    { uid: 'di1', id: 'slate_arch', x: 295, y: 455, scale: 1.25, rotation: 0, flipX: false },
+                    { uid: 'di2', id: 'cactus_bunny', x: 235, y: 455, scale: 1.15, rotation: -6, flipX: false },
+                    { uid: 'di3', id: 'echeveria', x: 350, y: 462, scale: 1.15, rotation: 0, flipX: false },
+                    { uid: 'di4', id: 'tillandsia', x: 310, y: 380, scale: 0.95, rotation: 12, flipX: false },
+                    { uid: 'di5', id: 'river_pebbles', x: 280, y: 466, scale: 0.95, rotation: 0, flipX: false }
+                ]
+            },
+            crystal: {
+                vessel: 'wardian',
+                showCork: false,
+                substrates: [
+                    { uid: 'c1', type: 'charcoal', thickness: 26 },
+                    { uid: 'c2', type: 'leca', thickness: 28 },
+                    { uid: 'c3', type: 'soil', thickness: 52 },
+                    { uid: 'c4', type: 'sphagnum', thickness: 24 }
+                ],
+                items: [
+                    { uid: 'ci1', id: 'fairy_lights', x: 300, y: 245, scale: 1.45, rotation: 0, flipX: false },
+                    { uid: 'ci2', id: 'cottage_house', x: 255, y: 455, scale: 1.1, rotation: 0, flipX: false },
+                    { uid: 'ci3', id: 'crystal_amethyst', x: 365, y: 458, scale: 1.2, rotation: 6, flipX: false },
+                    { uid: 'ci4', id: 'crystal_rose', x: 195, y: 460, scale: 1.0, rotation: -8, flipX: false },
+                    { uid: 'ci5', id: 'pilea', x: 320, y: 452, scale: 1.1, rotation: 0, flipX: false },
+                    { uid: 'ci6', id: 'lantern_post', x: 295, y: 462, scale: 1.0, rotation: 0, flipX: false },
+                    { uid: 'ci7', id: 'stepping_stones', x: 265, y: 472, scale: 1.1, rotation: 0, flipX: false }
+                ]
+            },
+            empty: {
+                vessel: 'globe',
+                showCork: true,
+                substrates: [
+                    { uid: 'e1', type: 'pebbles', thickness: 35 },
+                    { uid: 'e2', type: 'soil', thickness: 55 }
+                ],
+                items: []
+            }
+        };
+
+        /********************************************************************
+         * 6. RENDERING PIPELINE (Vessel, Substrates, Botanicals, Weather)
+         ********************************************************************/
+        function renderAll() {
+            renderVessel();
+            renderSubstrates();
+            renderItems();
+            renderSelectionBox();
+            renderWeatherEffects();
+            updateEcoHealthBadge();
+        }
+
+        function renderVessel() {
+            const v = VESSELS[state.vessel];
+            document.getElementById('vesselClipPath').setAttribute('d', v.path);
+            document.getElementById('vesselBackGlass').setAttribute('d', v.path);
+            document.getElementById('vesselBackGlass').setAttribute('fill', state.env.night ? 'url(#glassTintNight)' : 'url(#glassTintDay)');
+            document.getElementById('vesselOutline').setAttribute('d', v.path);
+            document.getElementById('vesselOuterBorder').setAttribute('d', v.path);
+
+            // Geometric Frame (for Wardian Case)
+            const frameEl = document.getElementById('vesselFrameOverlay');
+            if (v.frame) {
+                frameEl.setAttribute('d', v.frame);
+                frameEl.setAttribute('stroke', v.frameColor || '#4A3B2C');
+                frameEl.setAttribute('stroke-width', '4');
+                frameEl.setAttribute('stroke-linejoin', 'round');
+            } else {
+                frameEl.setAttribute('d', '');
+            }
+
+            // Glass Reflections
+            const reflGroup = document.getElementById('glassReflectionGroup');
+            reflGroup.style.display = state.env.reflection ? 'block' : 'none';
+            document.getElementById('vesselHighlightLeft').setAttribute('d', v.highlightL);
+            document.getElementById('vesselHighlightRight').setAttribute('d', v.highlightR);
+
+            // Cork Lid
+            const corkLayer = document.getElementById('corkLayer');
+            if (state.showCork && v.cork) {
+                corkLayer.innerHTML = `
+                    <path d="${v.cork}" fill="url(#corkGrad)" stroke="#755130" stroke-width="2" stroke-linejoin="round"/>
+                    <ellipse cx="300" cy="${parseFloat(v.cork.split(' ')[2])}" rx="${(parseFloat(v.cork.split(' ')[4]) - parseFloat(v.cork.split(' ')[1]))/2}" ry="5" fill="#D6AE84" stroke="#755130" stroke-width="1.5"/>
+                `;
+            } else {
+                corkLayer.innerHTML = '';
+            }
+        }
+
+        // Deterministic pseudo-random helper for stable organic substrate grains
+        function seededRandom(seed) {
+            let x = Math.sin(seed++) * 10000;
+            return x - Math.floor(x);
+        }
+
+        function renderSubstrates() {
+            const v = VESSELS[state.vessel];
+            const group = document.getElementById('substrateLayerGroup');
+            const rimGroup = document.getElementById('soilRimOverlay');
+            group.innerHTML = '';
+            rimGroup.innerHTML = '';
+
+            let currentY = v.bottomY;
+
+            state.substrates.forEach((layer, idx) => {
+                const subDef = SUBSTRATE_TYPES[layer.type];
+                const h = Number(layer.thickness);
+                if (h <= 0) return;
+
+                const topY = currentY - h;
+                const seedBase = (idx + 1) * 137;
+
+                // Subtle organic wave path for top surface
+                const waveAmp = Math.min(5, h * 0.2);
+                const topWave = `M 80 ${topY} Q 190 ${topY + waveAmp} 300 ${topY - waveAmp * 0.7} T 520 ${topY}`;
+                const layerPath = `${topWave} L 520 ${currentY + 12} L 80 ${currentY + 12} Z`;
+
+                let particlesMarkup = '';
+                const areaCount = Math.floor(h * 1.4);
+
+                for (let i = 0; i < areaCount; i++) {
+                    const rx = 110 + seededRandom(seedBase + i * 3) * 380;
+                    const ry = topY + 5 + seededRandom(seedBase + i * 7) * Math.max(4, h - 8);
+
+                    if (subDef.grainType === 'pebbles') {
+                        const rX = 5 + seededRandom(seedBase + i) * 6;
+                        const rY = 3 + seededRandom(seedBase + i * 2) * 3.5;
+                        const shade = i % 3 === 0 ? '#78716C' : (i % 2 === 0 ? '#B8B0A4' : '#8A8178');
+                        particlesMarkup += `<ellipse cx="${rx.toFixed(1)}" cy="${ry.toFixed(1)}" rx="${rX.toFixed(1)}" ry="${rY.toFixed(1)}" fill="${shade}" stroke="#57534E" stroke-width="0.7"/>`;
+                    } else if (subDef.grainType === 'leca') {
+                        const r = 4.5 + seededRandom(seedBase + i) * 3;
+                        const shade = i % 2 === 0 ? '#8C462B' : '#BC6C4F';
+                        particlesMarkup += `<circle cx="${rx.toFixed(1)}" cy="${ry.toFixed(1)}" r="${r.toFixed(1)}" fill="${shade}" stroke="#5E2D19" stroke-width="0.7"/>`;
+                    } else if (subDef.grainType === 'specks') {
+                        const r = 1.5 + seededRandom(seedBase + i) * 2.2;
+                        particlesMarkup += `<rect x="${rx.toFixed(1)}" y="${ry.toFixed(1)}" width="${(r*1.8).toFixed(1)}" height="${r.toFixed(1)}" rx="1" fill="#18181B" opacity="0.8"/>`;
+                    } else if (subDef.grainType === 'fibers') {
+                        const len = 8 + seededRandom(seedBase + i) * 10;
+                        particlesMarkup += `<path d="M${rx.toFixed(1)},${ry.toFixed(1)} Q${(rx+len/2).toFixed(1)},${(ry-3).toFixed(1)} ${(rx+len).toFixed(1)},${(ry+1).toFixed(1)}" stroke="${i%2===0?'#8CA65E':'#536633'}" stroke-width="1.5" fill="none" stroke-linecap="round"/>`;
+                    } else if (subDef.grainType === 'soil') {
+                        const r = 1.2 + seededRandom(seedBase + i) * 2.5;
+                        const shade = i % 3 === 0 ? '#362318' : '#705241';
+                        particlesMarkup += `<circle cx="${rx.toFixed(1)}" cy="${ry.toFixed(1)}" r="${r.toFixed(1)}" fill="${shade}" opacity="0.75"/>`;
+                    } else {
+                        const r = 1 + seededRandom(seedBase + i) * 1.5;
+                        particlesMarkup += `<circle cx="${rx.toFixed(1)}" cy="${ry.toFixed(1)}" r="${r.toFixed(1)}" fill="#FFFFFF" opacity="0.35"/>`;
+                    }
+                }
+
+                const layerG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                layerG.innerHTML = `
+                    <path d="${layerPath}" fill="${subDef.color}" />
+                    <path d="${topWave}" fill="none" stroke="${subDef.topColor}" stroke-width="4" />
+                    ${particlesMarkup}
+                `;
+                group.appendChild(layerG);
+
+                // If top-most layer, add a gentle soil rim overlay so planted items look nestled inside
+                if (idx === state.substrates.length - 1) {
+                    rimGroup.innerHTML = `
+                        <path d="M 80 ${topY + 2} Q 190 ${topY + waveAmp + 3} 300 ${topY - waveAmp * 0.7 + 2} T 520 ${topY + 2}" 
+                              fill="none" stroke="${subDef.topColor}" stroke-width="5" stroke-opacity="0.75" />
+                    `;
+                }
+
+                currentY = topY;
+            });
+        }
+
+        function renderItems() {
+            const container = document.getElementById('itemsLayerContainer');
+            container.innerHTML = '';
+
+            state.items.forEach(item => {
+                const def = CATALOG_ITEMS.find(c => c.id === item.id);
+                if (!def) return;
+
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                const isSelected = item.uid === state.selectedUid;
+                g.setAttribute('class', `terrarium-item ${isSelected ? 'selected' : ''}`);
+                g.setAttribute('data-uid', item.uid);
+
+                const sx = item.flipX ? -item.scale : item.scale;
+                const sy = item.scale;
+                g.setAttribute('transform', `translate(${item.x}, ${item.y}) rotate(${item.rotation}) scale(${sx}, ${sy})`);
+                g.innerHTML = def.svg;
+
+                // Pointer Down for Dragging & Selection
+                g.addEventListener('pointerdown', (e) => startItemDrag(e, item.uid));
+                container.appendChild(g);
+            });
+        }
+
+        function renderSelectionBox() {
+            const boxLayer = document.getElementById('selectionBoxLayer');
+            const inspector = document.getElementById('itemInspector');
+            boxLayer.innerHTML = '';
+
+            const selectedItem = state.items.find(i => i.uid === state.selectedUid);
+            if (!selectedItem) {
+                inspector.classList.add('hidden');
+                return;
+            }
+
+            const def = CATALOG_ITEMS.find(c => c.id === selectedItem.id);
+            inspector.classList.remove('hidden');
+            document.getElementById('selectedItemLabel').textContent = def ? def.name : 'Element';
+            document.getElementById('itemScaleSlider').value = selectedItem.scale;
+            document.getElementById('itemRotateSlider').value = selectedItem.rotation;
+
+            // Subtle anchor ring at item base
+            boxLayer.innerHTML = `
+                <g transform="translate(${selectedItem.x}, ${selectedItem.y})">
+                    <circle cx="0" cy="0" r="6" fill="#C86D51" stroke="#FFFFFF" stroke-width="2"/>
+                    <circle cx="0" cy="-28" r="${38 * selectedItem.scale}" fill="none" stroke="#C86D51" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.75"/>
+                </g>
+            `;
+        }
+
+        function renderWeatherEffects() {
+            const weatherLayer = document.getElementById('weatherEffectsLayer');
+            weatherLayer.innerHTML = '';
+
+            // Fireflies
+            if (state.env.fireflies) {
+                for (let i = 0; i < 16; i++) {
+                    const fx = 160 + (i * 23) % 280;
+                    const fy = 170 + (i * 41) % 310;
+                    const delay = (i * 0.35).toFixed(2);
+                    const dur = (3.2 + (i % 3) * 0.9).toFixed(2);
+                    weatherLayer.innerHTML += `
+                        <circle cx="${fx}" cy="${fy}" r="7" fill="url(#fireflyGlow)" class="firefly-particle" style="animation-delay:${delay}s; animation-duration:${dur}s;"/>
+                        <circle cx="${fx}" cy="${fy}" r="2" fill="#FEF9C3" class="firefly-particle" style="animation-delay:${delay}s; animation-duration:${dur}s;"/>
+                    `;
+                }
+            }
+
+            // Mist / Gentle Rain
+            if (state.env.mist) {
+                for (let i = 0; i < 28; i++) {
+                    const mx = 145 + (i * 17) % 310;
+                    const my = 120 + (i * 29) % 140;
+                    const delay = ((i * 0.13) % 1.8).toFixed(2);
+                    weatherLayer.innerHTML += `
+                        <line x1="${mx}" y1="${my}" x2="${mx - 3}" y2="${my + 14}" stroke="#BAE6FD" stroke-width="1.8" stroke-linecap="round" opacity="0.65" class="mist-particle" style="animation-delay:${delay}s;" />
+                    `;
+                }
+            }
+        }
+
+        function updateEcoHealthBadge() {
+            const hasDrainage = state.substrates.some(s => s.type === 'pebbles' || s.type === 'leca');
+            const hasSoil = state.substrates.some(s => s.type === 'soil' || s.type.startsWith('sand'));
+            const plantCount = state.items.filter(i => {
+                const d = CATALOG_ITEMS.find(c => c.id === i.id);
+                return d && d.category === 'plants';
+            }).length;
+
+            const dot = document.getElementById('ecoIndicator');
+            const title = document.getElementById('ecoTitle');
+            const sub = document.getElementById('ecoSubtitle');
+
+            if (hasDrainage && hasSoil && plantCount > 0) {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+                title.textContent = 'Thriving Ecosystem';
+                sub.textContent = ` • ${plantCount} Flora & Optimal Drainage`;
+            } else if (plantCount === 0) {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+                title.textContent = 'Awaiting Flora';
+                sub.textContent = ' • Add plants from the catalog';
+            } else {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-sky-400';
+                title.textContent = 'Custom Arrangement';
+                sub.textContent = ` • ${plantCount} Botanicals Placed`;
+            }
+        }
+
+        /********************************************************************
+         * 7. INTERACTIVE DRAG & DROP + POINTER MANIPULATION
+         ********************************************************************/
+        let dragState = null;
+
+        function getSvgPoint(clientX, clientY) {
+            const svg = document.getElementById('terrariumSvg');
+            const pt = svg.createSVGPoint();
+            pt.x = clientX;
+            pt.y = clientY;
+            return pt.matrixTransform(svg.getScreenCTM().inverse());
+        }
+
+        function startItemDrag(e, uid) {
+            e.stopPropagation();
+            state.selectedUid = uid;
+            const item = state.items.find(i => i.uid === uid);
+            if (!item) return;
+
+            const svgPt = getSvgPoint(e.clientX, e.clientY);
+            dragState = {
+                uid,
+                offsetX: svgPt.x - item.x,
+                offsetY: svgPt.y - item.y
+            };
+
+            renderItems();
+            renderSelectionBox();
+        }
+
+        window.addEventListener('pointermove', (e) => {
+            if (!dragState) return;
+            const item = state.items.find(i => i.uid === dragState.uid);
+            if (!item) return;
+
+            const svgPt = getSvgPoint(e.clientX, e.clientY);
+            item.x = Math.max(115, Math.min(485, Math.round(svgPt.x - dragState.offsetX)));
+            item.y = Math.max(125, Math.min(575, Math.round(svgPt.y - dragState.offsetY)));
+
+            // Fast DOM transform update without rebuilding full list
+            const el = document.querySelector(`.terrarium-item[data-uid="${item.uid}"]`);
+            if (el) {
+                const sx = item.flipX ? -item.scale : item.scale;
+                el.setAttribute('transform', `translate(${item.x}, ${item.y}) rotate(${item.rotation}) scale(${sx}, ${item.scale})`);
+            }
+            renderSelectionBox();
+        });
+
+        window.addEventListener('pointerup', () => {
+            if (dragState) {
+                dragState = null;
+            }
+        });
+
+        // Deselect when clicking empty background
+        document.getElementById('terrariumSvg').addEventListener('pointerdown', (e) => {
+            if (!e.target.closest('.terrarium-item')) {
+                state.selectedUid = null;
+                renderItems();
+                renderSelectionBox();
+            }
+        });
+
+        // HTML5 Drag & Drop from Sidebar Catalog onto SVG Canvas
+        function handleCatalogDragStart(e, itemId) {
+            e.dataTransfer.setData('text/plain', itemId);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const itemId = e.dataTransfer.getData('text/plain');
+            if (!itemId) return;
+            const svgPt = getSvgPoint(e.clientX, e.clientY);
+            addItemToTerrarium(itemId, Math.round(svgPt.x), Math.round(svgPt.y));
+        }
+
+        function getSubstrateSurfaceY() {
+            const v = VESSELS[state.vessel];
+            const totalThickness = state.substrates.reduce((sum, s) => sum + Number(s.thickness), 0);
+            return v.bottomY - totalThickness + 6;
+        }
+
+        function addItemToTerrarium(itemId, customX = null, customY = null) {
+            const def = CATALOG_ITEMS.find(c => c.id === itemId);
+            if (!def) return;
+
+            const surfaceY = getSubstrateSurfaceY();
+            const x = customX !== null ? Math.max(140, Math.min(460, customX)) : Math.round(250 + (Math.random() - 0.5) * 110);
+            const y = customY !== null ? Math.max(140, Math.min(570, customY)) : Math.round(surfaceY + (Math.random() - 0.5) * 10);
+
+            const newItem = {
+                uid: 'item_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                id: itemId,
+                x,
+                y,
+                scale: def.defaultScale || 1.0,
+                rotation: 0,
+                flipX: false
+            };
+
+            state.items.push(newItem);
+            state.selectedUid = newItem.uid;
+            playSfx('place');
+            renderAll();
+        }
+
+        /********************************************************************
+         * 8. ITEM INSPECTOR & SUBSTRATE UI CONTROLS
+         ********************************************************************/
+        function updateSelectedTransform(prop, val) {
+            const item = state.items.find(i => i.uid === state.selectedUid);
+            if (!item) return;
+            item[prop] = parseFloat(val);
+            renderItems();
+            renderSelectionBox();
+        }
+
+        function flipSelectedItem() {
+            const item = state.items.find(i => i.uid === state.selectedUid);
+            if (!item) return;
+            item.flipX = !item.flipX;
+            playSfx('pop');
+            renderItems();
+        }
+
+        function moveSelectedLayer(dir) {
+            const idx = state.items.findIndex(i => i.uid === state.selectedUid);
+            if (idx === -1) return;
+            const targetIdx = idx + dir;
+            if (targetIdx < 0 || targetIdx >= state.items.length) return;
+            const [removed] = state.items.splice(idx, 1);
+            state.items.splice(targetIdx, 0, removed);
+            playSfx('pop');
+            renderItems();
+        }
+
+        function duplicateSelectedItem() {
+            const item = state.items.find(i => i.uid === state.selectedUid);
+            if (!item) return;
+            const copy = {
+                ...item,
+                uid: 'item_' + Date.now(),
+                x: Math.min(460, item.x + 24),
+                y: item.y + 4
+            };
+            state.items.push(copy);
+            state.selectedUid = copy.uid;
+            playSfx('place');
+            renderAll();
+        }
+
+        function deleteSelectedItem() {
+            if (!state.selectedUid) return;
+            state.items = state.items.filter(i => i.uid !== state.selectedUid);
+            state.selectedUid = null;
+            playSfx('delete');
+            renderAll();
+        }
+
+        // Keyboard Shortcuts (Delete / Backspace / Arrows)
+        window.addEventListener('keydown', (e) => {
+            if (!state.selectedUid) return;
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                deleteSelectedItem();
+            } else if (e.key === 'ArrowLeft') {
+                const item = state.items.find(i => i.uid === state.selectedUid);
+                if (item) { item.x -= 4; renderItems(); renderSelectionBox(); }
+            } else if (e.key === 'ArrowRight') {
+                const item = state.items.find(i => i.uid === state.selectedUid);
+                if (item) { item.x += 4; renderItems(); renderSelectionBox(); }
+            } else if (e.key === 'ArrowUp') {
+                const item = state.items.find(i => i.uid === state.selectedUid);
+                if (item) { item.y -= 4; renderItems(); renderSelectionBox(); }
+            } else if (e.key === 'ArrowDown') {
+                const item = state.items.find(i => i.uid === state.selectedUid);
+                if (item) { item.y += 4; renderItems(); renderSelectionBox(); }
+            }
+        });
+
+        /********************************************************************
+         * 9. SIDEBAR BUILDERS (Vessels, Substrates, Item Catalogs)
+         ********************************************************************/
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`panel-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.className = 'tab-btn flex flex-col items-center py-2 px-1 rounded-lg text-[11px] font-semibold text-[#52635A] hover:bg-[#E6E1D6] transition';
+            });
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.className = 'tab-btn flex flex-col items-center py-2 px-1 rounded-lg text-[11px] font-semibold transition bg-[#2B4C3F] text-white shadow-sm';
+        }
+
+        function initSidebarCatalogs() {
+            // 1. Vessels Grid
+            const vesselGrid = document.getElementById('vesselGrid');
+            vesselGrid.innerHTML = '';
+            Object.values(VESSELS).forEach(v => {
+                const isSelected = state.vessel === v.id;
+                const card = document.createElement('button');
+                card.className = `p-3 rounded-xl border text-left transition flex flex-col items-center gap-2 ${
+                    isSelected ? 'bg-[#E3F0EC] border-[#2B4C3F] ring-1 ring-[#2B4C3F]' : 'bg-white border-[#E4DFD3] hover:border-[#749582]'
+                }`;
+                card.onclick = () => selectVessel(v.id);
+                card.innerHTML = `
+                    <svg viewBox="0 0 600 660" class="w-16 h-16">
+                        <path d="${v.path}" fill="#E6F2EE" stroke="#2B4C3F" stroke-width="18" stroke-linejoin="round"/>
+                        ${v.frame ? `<path d="${v.frame}" fill="none" stroke="#4A3B2C" stroke-width="12"/>` : ''}
+                    </svg>
+                    <div class="w-full text-center">
+                        <div class="text-xs font-bold text-[#1E352C] truncate">${v.name}</div>
+                        <div class="text-[10px] text-[#6E7E75] truncate">${v.desc}</div>
+                    </div>
+                `;
+                vesselGrid.appendChild(card);
+            });
+
+            // 2. Substrate Quick-Add Buttons
+            const addContainer = document.getElementById('substrateAddButtons');
+            addContainer.innerHTML = '';
+            Object.values(SUBSTRATE_TYPES).forEach(sub => {
+                const btn = document.createElement('button');
+                btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-[#D8D1C2] hover:border-[#2B4C3F] transition active:scale-95';
+                btn.onclick = () => addSubstrateLayer(sub.id);
+                btn.innerHTML = `
+                    <span class="w-3 h-3 rounded-full border border-black/20" style="background:${sub.color}"></span>
+                    <span>+ ${sub.name.split(' ')[0]}</span>
+                `;
+                addContainer.appendChild(btn);
+            });
+
+            renderSubstrateControlsList();
+
+            // 3. Populate Plants, Hardscape, Decor Grids
+            ['plants', 'hardscape', 'decor'].forEach(cat => {
+                const grid = document.getElementById(`${cat}Grid`);
+                grid.innerHTML = '';
+                CATALOG_ITEMS.filter(item => item.category === cat).forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'group bg-white hover:bg-[#F3F8F5] border border-[#E4DFD3] hover:border-[#749582] rounded-xl p-2 flex flex-col items-center justify-between cursor-pointer transition shadow-sm hover:shadow';
+                    card.draggable = true;
+                    card.ondragstart = (e) => handleCatalogDragStart(e, item.id);
+                    card.onclick = () => addItemToTerrarium(item.id);
+                    card.innerHTML = `
+                        <div class="w-16 h-16 flex items-center justify-center overflow-visible">
+                            <svg viewBox="-70 -115 140 130" class="w-full h-full overflow-visible group-hover:scale-110 transition-transform">
+                                ${item.svg}
+                            </svg>
+                        </div>
+                        <span class="text-[11px] font-semibold text-[#25332D] text-center leading-tight mt-1 line-clamp-1">${item.name}</span>
+                    `;
+                    grid.appendChild(card);
+                });
+            });
+        }
+
+        function renderSubstrateControlsList() {
+            const list = document.getElementById('substrateStackList');
+            list.innerHTML = '';
+
+            // Display top-to-bottom so it matches visual hierarchy
+            [...state.substrates].reverse().forEach((layer, revIdx) => {
+                const actualIdx = state.substrates.length - 1 - revIdx;
+                const subDef = SUBSTRATE_TYPES[layer.type];
+                const card = document.createElement('div');
+                card.className = 'bg-white p-2.5 rounded-xl border border-[#E4DFD3] shadow-sm space-y-1.5';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-4 h-4 rounded-md border border-black/15 shrink-0" style="background:${subDef.color}"></span>
+                            <div>
+                                <div class="text-xs font-bold text-[#1E352C] leading-none">${subDef.name}</div>
+                                <div class="text-[10px] text-[#6E7E75]">${subDef.role}</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <button onclick="moveSubstrate(${actualIdx}, 1)" class="p-1 text-xs text-[#6E7E75] hover:text-[#1E352C]" title="Move Up">
+                                <i class="ph-bold ph-caret-up"></i>
+                            </button>
+                            <button onclick="moveSubstrate(${actualIdx}, -1)" class="p-1 text-xs text-[#6E7E75] hover:text-[#1E352C]" title="Move Down">
+                                <i class="ph-bold ph-caret-down"></i>
+                            </button>
+                            <button onclick="removeSubstrate(${actualIdx})" class="p-1 text-xs text-red-500 hover:bg-red-50 rounded" title="Remove Layer">
+                                <i class="ph-bold ph-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-medium text-[#6E7E75] w-14">Thickness</span>
+                        <input type="range" min="10" max="90" value="${layer.thickness}" 
+                               oninput="updateSubstrateThickness(${actualIdx}, this.value)" class="flex-1">
+                        <span class="text-[10px] font-bold text-[#2B4C3F] w-8 text-right" id="subVal-${actualIdx}">${layer.thickness}mm</span>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function selectVessel(vesselId) {
+            state.vessel = vesselId;
+            playSfx('pop');
+            initSidebarCatalogs();
+            renderAll();
+        }
+
+        function toggleCork(checked) {
+            state.showCork = checked;
+            playSfx('pop');
+            renderVessel();
+        }
+
+        function addSubstrateLayer(typeId) {
+            if (state.substrates.length >= 6) {
+                showToast("Maximum of 6 substrate layers reached");
+                return;
+            }
+            const oldSurface = getSubstrateSurfaceY();
+            state.substrates.push({
+                uid: 'sub_' + Date.now(),
+                type: typeId,
+                thickness: 28
+            });
+            const newSurface = getSubstrateSurfaceY();
+            const deltaY = newSurface - oldSurface;
+            state.items.forEach(item => { item.y = Math.max(130, item.y + deltaY); });
+
+            playSfx('layer');
+            renderSubstrateControlsList();
+            renderAll();
+        }
+
+        function updateSubstrateThickness(idx, val) {
+            const oldSurface = getSubstrateSurfaceY();
+            state.substrates[idx].thickness = Number(val);
+            const newSurface = getSubstrateSurfaceY();
+            const deltaY = newSurface - oldSurface;
+
+            // Shift items naturally with the rising or falling soil level
+            state.items.forEach(item => {
+                item.y = Math.max(130, Math.min(570, item.y + deltaY));
+            });
+
+            const label = document.getElementById(`subVal-${idx}`);
+            if (label) label.textContent = `${val}mm`;
+            renderSubstrates();
+            renderItems();
+            renderSelectionBox();
+        }
+
+        function moveSubstrate(idx, dir) {
+            const target = idx + dir;
+            if (target < 0 || target >= state.substrates.length) return;
+            const temp = state.substrates[idx];
+            state.substrates[idx] = state.substrates[target];
+            state.substrates[target] = temp;
+            playSfx('layer');
+            renderSubstrateControlsList();
+            renderSubstrates();
+        }
+
+        function removeSubstrate(idx) {
+            if (state.substrates.length <= 1) {
+                showToast("Keep at least one base substrate layer");
+                return;
+            }
+            const oldSurface = getSubstrateSurfaceY();
+            state.substrates.splice(idx, 1);
+            const newSurface = getSubstrateSurfaceY();
+            const deltaY = newSurface - oldSurface;
+            state.items.forEach(item => { item.y = Math.min(570, item.y + deltaY); });
+
+            playSfx('delete');
+            renderSubstrateControlsList();
+            renderAll();
+        }
+
+        /********************************************************************
+         * 10. AMBIANCE, WATERING, PRESETS & SNAPSHOT EXPORT
+         ********************************************************************/
+        function toggleEnv(key) {
+            state.env[key] = !state.env[key];
+            playSfx('pop');
+
+            const btn = document.getElementById(`btn-${key}`);
+            if (state.env[key]) {
+                btn.className = 'flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-[#2B4C3F] text-white transition';
+            } else {
+                btn.className = 'flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-[#52635A] hover:bg-[#EFECE4] transition';
+            }
+
+            if (key === 'night') {
+                const canvasContainer = document.getElementById('canvasContainer');
+                const nightOverlay = document.getElementById('nightInteriorOverlay');
+                if (state.env.night) {
+                    canvasContainer.classList.remove('day-gradient');
+                    canvasContainer.classList.add('night-gradient');
+                    nightOverlay.setAttribute('fill-opacity', '0.26');
+                    // Auto turn on fireflies in night mode if not already on
+                    if (!state.env.fireflies) toggleEnv('fireflies');
+                } else {
+                    canvasContainer.classList.remove('night-gradient');
+                    canvasContainer.classList.add('day-gradient');
+                    nightOverlay.setAttribute('fill-opacity', '0');
+                }
+            }
+            renderAll();
+        }
+
+        function waterTerrarium() {
+            playSfx('mist');
+            const wasMist = state.env.mist;
+            state.env.mist = true;
+            renderWeatherEffects();
+            showToast("💧 Misting botanicals with fresh rainwater...");
+
+            if (!wasMist) {
+                setTimeout(() => {
+                    state.env.mist = false;
+                    renderWeatherEffects();
+                }, 2600);
+            }
+        }
+
+        function loadPreset(presetKey) {
+            const p = PRESETS[presetKey];
+            if (!p) return;
+            state.vessel = p.vessel;
+            state.showCork = p.showCork;
+            state.substrates = JSON.parse(JSON.stringify(p.substrates));
+            state.items = JSON.parse(JSON.stringify(p.items));
+            state.selectedUid = null;
+            document.getElementById('corkToggle').checked = state.showCork;
+
+            playSfx('place');
+            initSidebarCatalogs();
+            renderAll();
+            showToast(`Loaded "${presetKey.charAt(0).toUpperCase() + presetKey.slice(1)}" Terrarium`);
+        }
+
+        function saveToLocal() {
+            try {
+                localStorage.setItem('verdant_glass_saved_terrarium', JSON.stringify(state));
+                playSfx('place');
+                showToast("Terrarium saved to your browser!");
+            } catch (e) {
+                showToast("Could not save to local storage");
+            }
+        }
+
+        function exportSnapshot() {
+            // Deselect active item so selection gizmo isn't in the photo
+            const prevSelected = state.selectedUid;
+            state.selectedUid = null;
+            renderItems();
+            renderSelectionBox();
+
+            const svgElement = document.getElementById('terrariumSvg');
+            const serializer = new XMLSerializer();
+            let svgString = serializer.serializeToString(svgElement);
+
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            const img = new Image();
+            img.onload = function () {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1200;
+                canvas.height = 1320;
+                const ctx = canvas.getContext('2d');
+
+                // Studio Background Gradient
+                const grad = ctx.createRadialGradient(600, 480, 50, 600, 660, 850);
+                if (state.env.night) {
+                    grad.addColorStop(0, '#233338');
+                    grad.addColorStop(1, '#0C1316');
+                } else {
+                    grad.addColorStop(0, '#FFFFFF');
+                    grad.addColorStop(1, '#E3DDD1');
+                }
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw Terrarium SVG
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Subtle Botanical Signature Watermark
+                ctx.font = '600 22px "Fraunces", Georgia, serif';
+                ctx.fillStyle = state.env.night ? 'rgba(255,255,255,0.45)' : 'rgba(43,76,63,0.45)';
+                ctx.textAlign = 'center';
+                ctx.fillText('Verdant Glass • Botanical Terrarium Studio', 600, 1280);
+
+                URL.revokeObjectURL(url);
+
+                const pngUrl = canvas.toDataURL('image/png');
+                const downloadLink = document.createElement('a');
+                downloadLink.href = pngUrl;
+                downloadLink.download = `terrarium-${state.vessel}-${Date.now()}.png`;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+
+                // Restore selection
+                state.selectedUid = prevSelected;
+                renderItems();
+                renderSelectionBox();
+                playSfx('place');
+                showToast("📸 High-res PNG snapshot downloaded!");
+            };
+            img.src = url;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastMessage');
+            document.getElementById('toastText').textContent = msg;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2400);
+        }
+
+        // Initialize Studio on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('verdant_glass_saved_terrarium');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && parsed.vessel && parsed.substrates) {
+                        state = parsed;
+                        state.selectedUid = null;
+                    }
+                } catch (e) {}
+            } else {
+                // Default to Enchanted Moss Forest preset
+                state.vessel = PRESETS.forest.vessel;
+                state.showCork = PRESETS.forest.showCork;
+                state.substrates = JSON.parse(JSON.stringify(PRESETS.forest.substrates));
+                state.items = JSON.parse(JSON.stringify(PRESETS.forest.items));
+            }
+            document.getElementById('corkToggle').checked = state.showCork;
+            initSidebarCatalogs();
+            renderAll();
+        });
+    </script>
+</body>
+</html>
